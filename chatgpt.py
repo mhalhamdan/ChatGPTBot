@@ -53,11 +53,14 @@ class ChatGPT():
             {"role": "user", "content": user + ":" + prompt}
         )
 
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=self.message_history,
-            max_tokens=self.max_return_tokens
-        )
+        try:
+            response = openai.ChatCompletion.create(
+                model="gpt-3.5-turbo",
+                messages=self.message_history,
+                max_tokens=self.max_return_tokens
+            )
+        except:
+            self._remove_oldest_message()
 
         message_response = response['choices'][0]['message']['content']
 
