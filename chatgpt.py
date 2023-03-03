@@ -38,20 +38,19 @@ class ChatGPT():
         self.token_count -= self._count_tokens(message["role"])
         self.token_count -= self._count_tokens(message["content"])
 
-    def _add_response_to_history(self, message_response):
-        self.token_count += self._count_tokens(message_response)
-        self.token_count += self._count_tokens("assistant")
+
+    def _add_message_to_history(self, message: str, type: str):
+        self.token_count += self._count_tokens(message)
+        self.token_count += self._count_tokens(type)
         self.message_history.append(
-            {"role": "assistant", "content": message_response}
+            {"role": type, "content": message}
         )
 
     def ask(self, user: str, prompt: str) -> str:
         while self._exceeds_token_limit(user, prompt):
             self._remove_oldest_message()
 
-        self.message_history.append(
-            {"role": "user", "content": user + ":" + prompt}
-        )
+        self._add_message_to_history(user + ":" + prompt, "user")
 
         try:
             response = openai.ChatCompletion.create(
@@ -64,7 +63,7 @@ class ChatGPT():
 
         message_response = response['choices'][0]['message']['content']
 
-        self._add_response_to_history(message_response)
+        self._add_message_to_history(message_response, "assistant")
 
         return message_response
     
