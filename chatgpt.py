@@ -53,10 +53,6 @@ class ChatGPT():
             {"role": "user", "content": user + ":" + prompt}
         )
 
-        print(self.message_history)
-
-        print(f"\n\nCurrent total tokens: {self.token_count}\n\n")
-
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
             messages=self.message_history,
