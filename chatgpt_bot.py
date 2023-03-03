@@ -1,19 +1,35 @@
-import os
 import discord
 from discord import Intents
-from chatgpt_wrapper import ChatGPT
 from credentials import DISCORD_TOKEN
+from chatgpt import ChatGPT
 
 TIMEOUT_IN_SECS = 30
 
 client = discord.Client(intents=Intents.all())
+chatgpt = ChatGPT()
 
-chatgpt = ChatGPT(timeout=TIMEOUT_IN_SECS)
 
-def ask(prompt: str) -> str:
-    prompt = prompt.split("-prompt")[1]
-    response = chatgpt.ask(prompt)
-    return response
+def get_username(author: discord.Member):
+    return f"<@{author.id}>"
+
+
+async def ask_chatgpt(message: discord.Message,  prefix: str = None) -> None:
+    if prefix:
+        prompt = message.content.split(prefix)[1]
+    else:
+        prompt = message.content
+
+    user = get_username(message.author)
+    response = chatgpt.ask(user, prompt)
+    await send_response(message, response)
+
+
+async def send_response(message: discord.Message, response: str) -> None:
+    while response:
+        to_send = response[:1500]
+        await message.reply(to_send)
+        response = response[1500:]
+
 
 @client.event
 async def on_ready():
@@ -22,16 +38,26 @@ async def on_ready():
 @client.event
 async def on_message(message: discord.Message):
 
-    if message.content.startswith("-prompt"):
-        response = ask(message.content)
-        message.reply(response)        
+    # When mentioned or replied to 
+    if message.mentions:
+        if message.mentions[0].id == client.user.id:
+            message.content = message.content.replace(f"<@{client.user.id}>", "")
+            await ask_chatgpt(message)
 
-    if message.content.startswith("-new"):
-        os.system("!new")
-        message.reply("Successfully cleared the conversation history.")     
 
-    if message.content.startswith("-session"):
-        os.system("!session")
-        message.reply("Successfully refreshed the session token.")     
+    # Commands
+
+    if message.content.startswith("-prompt") or message.content.startswith("-p"):
+        prefix = message.content.split()[0]
+        if not prefix == "-prompt" and not prefix == "-p":
+            return
+        await ask_chatgpt(message, prefix)
+
+
+    if message.content.startswith("-clear"):
+        if not message.content.split()[0] == "-clear":
+            return
+        chatgpt.initalize_history()
+        await message.reply("Successfully cleared the conversation history.")     
 
 client.run(DISCORD_TOKEN)

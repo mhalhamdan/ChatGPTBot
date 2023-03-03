@@ -1,2 +1,3 @@
-git+https://github.com/mmabrouk/chatgpt-wrapper
+openai
 discord
+tiktoken
