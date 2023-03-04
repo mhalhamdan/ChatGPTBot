@@ -4,6 +4,7 @@ from credentials import DISCORD_TOKEN
 from chatgpt import ChatGPT
 
 TIMEOUT_IN_SECS = 30
+DISCORD_MAX_CHARS = 1500
 
 client = discord.Client(intents=Intents.all())
 chatgpt = ChatGPT()
@@ -25,11 +26,14 @@ async def ask_chatgpt(message: discord.Message,  prefix: str = None) -> None:
 
 
 async def send_response(message: discord.Message, response: str) -> None:
-    while response:
-        to_send = response[:1500]
-        await message.reply(to_send)
-        response = response[1500:]
 
+    while response:
+        index = DISCORD_MAX_CHARS if len(response) <= DISCORD_MAX_CHARS else response[:DISCORD_MAX_CHARS].rindex(" ")
+        to_send = response[:index]
+        response = response[index:]
+
+        await message.reply(to_send)
+        
 
 @client.event
 async def on_ready():
