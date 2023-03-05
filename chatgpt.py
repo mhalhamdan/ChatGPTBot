@@ -75,6 +75,21 @@ class BaseGPT:
         self.initalize_history()
 
 
+    @staticmethod
+    def get_formatted_history(history: list) -> str:
+
+        result = ""
+
+        for line in history:
+            role, content = line["role"], line["content"]
+            if role == "user":
+                role = content[:21]
+                content = content[22:]
+            result += f"{role}: {content}\n\n"
+
+        return result
+
+
 class ChatGPT(BaseGPT):
 
     model = "gpt-3.5-turbo"
@@ -107,19 +122,12 @@ class GPT3(BaseGPT):
     model = "text-davinci-003"
     encoding = tiktoken.encoding_for_model(model)
 
-    def _get_prompt_from_messages(self) -> str:
 
-        result = ""
+    def _get_prompt_from_messages(self):
+        prompt = GPT3.get_formatted_history(self.message_history)
+        prompt += f"assistant: "
+        return prompt
 
-        for line in self.message_history:
-            role, content = line["role"], line["content"]
-            if role == "user":
-                role = content[:21]
-            result += f"{role}: {content}\n"
-
-        result += f"assistant: "
-
-        return result
 
     def ask(self, user: str, prompt: str) -> str:
         while self._exceeds_token_limit(user, prompt):

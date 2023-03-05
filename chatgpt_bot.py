@@ -1,7 +1,7 @@
 import discord
 from discord import Intents
 from credentials import DISCORD_TOKEN
-from chatgpt import ChatGPT
+from chatgpt import ChatGPT, GPT3
 
 TIMEOUT_IN_SECS = 30
 DISCORD_MAX_CHARS = 1500
@@ -50,7 +50,6 @@ async def on_message(message: discord.Message):
 
 
     # Commands
-
     if message.content.startswith("-prompt") or message.content.startswith("-p"):
         prefix = message.content.split()[0]
         if not prefix == "-prompt" and not prefix == "-p":
@@ -58,10 +57,27 @@ async def on_message(message: discord.Message):
         await ask_chatgpt(message, prefix)
 
 
+    if message.content.startswith("-system") or message.content.startswith("-s"):
+        prefix = message.content.split()[0]
+        if not prefix == "-system" and not prefix == "-s":
+            return
+        new_message = message.content.split(prefix)[1]
+        chatgpt.change_system_message(new_message)
+        await message.reply(f"Successfully set the new system message to: ```{chatgpt.system_message}```")
+
+
     if message.content.startswith("-clear"):
         if not message.content.split()[0] == "-clear":
             return
         chatgpt.initalize_history()
-        await message.reply("Successfully cleared the conversation history.")     
+        await message.reply("Successfully cleared the conversation history.")
+
+
+    if message.content.startswith("-history"):
+        if not message.content.split()[0] == "-history":
+            return
+        history = chatgpt.get_formatted_history(chatgpt.message_history)
+        await send_response(message, history)
+
 
 client.run(DISCORD_TOKEN)
