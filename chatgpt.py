@@ -10,7 +10,7 @@ class BaseGPT:
 
     model = None
     encoding = None
-    system_message = "You are a helpful assistant in a group chat. You may receive messages from more than one username, the username is a long string of numbers encased by <@>. Like <@263306098512101376>. You may respond to a user by addressing their username in your response but it is not necessary."
+    system_message = "You are a helpful assistant in a group chat. You may receive messages from more than one username, the username is a long string of numbers encased by <@>. Like <@266301098552101176>. You may respond to a user by addressing their username in your response but it is not necessary."
 
     def __init__(self, max_return_tokens=1024) -> None:
         self.message_history = []
