@@ -92,7 +92,7 @@ class BaseGPT:
 
 class ChatGPT(BaseGPT):
 
-    model = "gpt-3.5-turbo"
+    model = "gpt-4-turbo-preview"
     encoding = tiktoken.encoding_for_model(model)
 
     def ask(self, user: str, prompt: str) -> str:
@@ -102,7 +102,7 @@ class ChatGPT(BaseGPT):
         self._add_message_to_history(user + ": " + prompt, "user")
 
         try:
-            response = openai.ChatCompletion.create(
+            response = openai.chat.completions.create(
                 model=self.model,
                 messages=self.message_history,
                 max_tokens=self.max_return_tokens
@@ -110,7 +110,7 @@ class ChatGPT(BaseGPT):
         except:
             self._remove_oldest_message()
 
-        message_response = response['choices'][0]['message']['content']
+        message_response = response.choices[0].message.content
 
         self._add_message_to_history(message_response, "assistant")
 
