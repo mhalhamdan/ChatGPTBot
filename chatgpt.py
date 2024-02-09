@@ -94,12 +94,9 @@ class BaseGPT:
             function_to_call = AVAILABLE_FUNCTIONS[function_name]
             result = function_to_call(**arguments)
 
-            print("Arguments: ", arguments)
-
             if type(result) == tuple:
                 result, attachment = result[0], result[1]
                 self._add_attachment(attachment)
-                print("True and added ", attachment)
 
             self._add_tool_message_to_history(
                 tool_call_id=tool_call.id,
