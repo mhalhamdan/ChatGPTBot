@@ -1,8 +1,13 @@
+import json
 import openai
 import tiktoken
 from credentials import OPENAI_API_TOKEN
+from tools import addition_tool, add
+from openai.types.chat import ChatCompletion
+from openai.types.chat.chat_completion import Choice
+from openai.types.chat import ChatCompletionMessageToolCall
 
-MAX_TOKENS = 4096-1024
+MAX_TOKENS = 1024+256
 
 openai.api_key = OPENAI_API_TOKEN
 
@@ -10,7 +15,7 @@ class BaseGPT:
 
     model = None
     encoding = None
-    system_message = "You are a helpful assistant in a group chat. You may receive messages from more than one username, the username is a long string of numbers encased by <@>. Like <@266301098552101176>. You may respond to a user by addressing their username in your response but it is not necessary."
+    system_message = "You are a helpful assistant in a group chat. You may receive messages from more than one username, the username is a regular string, may or may not contain numbers or emojis. You may respond to a user by addressing their username in your response but it is not necessary."
 
     def __init__(self, max_return_tokens=1024) -> None:
         self.message_history = []
@@ -47,6 +52,38 @@ class BaseGPT:
             {"role": type, "content": message}
         )
 
+    def _handle_tool_call(self, tool_call: ChatCompletionMessageToolCall):
+        name = tool_call.function.name
+        arguments = json.loads(tool_call.function.arguments)
+
+        match name:
+            case "add":
+                func = add
+
+
+        result = func(**arguments)
+        return f"Used {name} function and got result {result}."   
+
+    def _handle_response(self, choice: Choice) -> str:
+        if choice.finish_reason == "tool_calls":
+            return self._handle_tool_call(choice.message.tool_calls[0])
+        
+        return choice.message.content
+
+
+    def _ask(self, user: str, prompt: str, create_params: dict) -> str:
+        while self._exceeds_token_limit(user, prompt):
+            self._remove_oldest_message()
+
+        self._add_message_to_history(user + ": " + prompt, "user")
+
+        response = openai.chat.completions.create(**create_params)
+
+        message = self._handle_response(response.choices[0])
+
+        self._add_message_to_history(message, "assistant")
+
+        return message
 
     def ask(self, user: str, prompt: str) -> str:
        pass
@@ -89,69 +126,24 @@ class BaseGPT:
 
         return result
 
-
 class ChatGPT(BaseGPT):
 
     model = "gpt-4-turbo-preview"
     encoding = tiktoken.encoding_for_model(model)
 
-    def ask(self, user: str, prompt: str) -> str:
-        while self._exceeds_token_limit(user, prompt):
-            self._remove_oldest_message()
-
-        self._add_message_to_history(user + ": " + prompt, "user")
-
-        try:
-            response = openai.chat.completions.create(
-                model=self.model,
-                messages=self.message_history,
-                max_tokens=self.max_return_tokens
-            )
-        except:
-            self._remove_oldest_message()
-
-        message_response = response.choices[0].message.content
-
-        self._add_message_to_history(message_response, "assistant")
-
-        return message_response
-
-
-class GPT3(BaseGPT):
-
-    model = "text-davinci-003"
-    encoding = tiktoken.encoding_for_model(model)
-
-
-    def _get_prompt_from_messages(self):
-        prompt = GPT3.get_formatted_history(self.message_history)
-        prompt += f"assistant: "
-        return prompt
-
+    tools = [
+        addition_tool
+    ]
 
     def ask(self, user: str, prompt: str) -> str:
-        while self._exceeds_token_limit(user, prompt):
-            self._remove_oldest_message()
 
-        self._add_message_to_history(user + ":" + prompt, "user")
-
-        prompt = self._get_prompt_from_messages()
-
-        try:
-            response = openai.Completion.create(
-                model=self.model,
-                prompt=prompt,
-                max_tokens=self.max_return_tokens,
-                temperature=1,
-                presence_penalty=1,
-                frequency_penalty=0.8
-            )
-        except:
-            self._remove_oldest_message()
-
-        message_response = response['choices'][0]['text']
-
-        self._add_message_to_history(message_response, "assistant")
-
-        return message_response
-
+        params = dict(
+            model=self.model,
+            messages=self.message_history,
+            max_tokens=self.max_return_tokens,
+            tools=[addition_tool],
+            tool_choice="auto"
+        )
+        
+    
+        return self._ask(user, prompt, params)

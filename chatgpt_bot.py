@@ -1,7 +1,7 @@
 import discord
 from discord import Intents
 from credentials import DISCORD_TOKEN
-from chatgpt import ChatGPT, GPT3
+from chatgpt import ChatGPT
 
 TIMEOUT_IN_SECS = 30
 DISCORD_MAX_CHARS = 1500
@@ -9,6 +9,7 @@ DISCORD_MAX_CHARS = 1500
 client = discord.Client(intents=Intents.all())
 chatgpt = ChatGPT()
 
+SIMPLE_USERNAME_CACHE = {}
 
 def get_username(author: discord.Member):
     return f"<@{author.id}>"
@@ -20,8 +21,14 @@ async def ask_chatgpt(message: discord.Message,  prefix: str = None) -> None:
     else:
         prompt = message.content
 
-    user = get_username(message.author)
-    response = chatgpt.ask(user, prompt)
+    SIMPLE_USERNAME_CACHE[get_username(message.author)] = message.author.display_name
+
+    response = chatgpt.ask(message.author.display_name, prompt)
+
+    for author_id, display_name in SIMPLE_USERNAME_CACHE.items():
+        if display_name in response:
+            response = response.replace(display_name, author_id)
+
     await send_response(message, response)
 
 
