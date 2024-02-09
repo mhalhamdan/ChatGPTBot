@@ -38,8 +38,9 @@ async def send_response(message: discord.Message, response: str) -> None:
         index = DISCORD_MAX_CHARS if len(response) <= DISCORD_MAX_CHARS else response[:DISCORD_MAX_CHARS].rindex(" ")
         to_send = response[:index]
         response = response[index:]
-
-        await message.reply(to_send)
+        
+        file = chatgpt._pop_attachment() if chatgpt.attachments else None
+        await message.reply(to_send, file=file)
         
 
 @client.event

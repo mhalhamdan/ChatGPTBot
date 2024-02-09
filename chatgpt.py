@@ -3,7 +3,7 @@ import openai
 import tiktoken
 from typing import List
 from credentials import OPENAI_API_TOKEN
-from tools import addition_tool, add
+from tools import generate_speech, text_to_speech_tool, generate_image, generate_image_tool
 from openai.types.chat import ChatCompletion
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat import ChatCompletionMessageToolCall
@@ -14,7 +14,8 @@ PLACEHOLDER_SIZE_FOR_OBJECT = 128
 openai.api_key = OPENAI_API_TOKEN
 
 AVAILABLE_FUNCTIONS = {
-    "add": add
+    "tts": generate_speech,
+    "generate_image": generate_image
 }
 
 class BaseGPT:
@@ -22,6 +23,7 @@ class BaseGPT:
     model = None
     encoding = None
     system_message = "You are a helpful assistant in a group chat. You may receive messages from more than one username, the username is a regular string, may or may not contain numbers or emojis. You may respond to a user by addressing their username in your response but it is not necessary."
+    attachments = []
 
     def __init__(self, max_return_tokens=1024*4) -> None:
         self.message_history = []
@@ -29,6 +31,11 @@ class BaseGPT:
         self.token_count = 0        
         self.initalize_history()
 
+    def _add_attachment(self, attachment):
+        self.attachments.append(attachment)
+
+    def _pop_attachment(self):
+        return self.attachments.pop()
 
     def _count_tokens(self, text: str):
         tokens = self.encoding.encode(text)
@@ -75,7 +82,7 @@ class BaseGPT:
             "tool_call_id": tool_call_id,
             "role": "tool",
             "name": function_name,
-            "content": str(result)
+            "content": result
         }
 
         self._add_to_history(tool_call_message)
@@ -87,10 +94,17 @@ class BaseGPT:
             function_to_call = AVAILABLE_FUNCTIONS[function_name]
             result = function_to_call(**arguments)
 
+            print("Arguments: ", arguments)
+
+            if type(result) == tuple:
+                result, attachment = result[0], result[1]
+                self._add_attachment(attachment)
+                print("True and added ", attachment)
+
             self._add_tool_message_to_history(
                 tool_call_id=tool_call.id,
                 function_name=function_name,
-                result=result
+                result=str(result)
             )
 
         second_response = openai.chat.completions.create(
@@ -171,7 +185,7 @@ class ChatGPT(BaseGPT):
     encoding = tiktoken.encoding_for_model(model)
 
     tools = [
-        addition_tool
+        generate_image_tool, text_to_speech_tool
     ]
 
     def ask(self, user: str, prompt: str) -> str:
@@ -180,9 +194,8 @@ class ChatGPT(BaseGPT):
             model=self.model,
             messages=self.message_history,
             max_tokens=self.max_return_tokens,
-            tools=[addition_tool],
+            tools=self.tools,
             tool_choice="auto"
         )
-        
-    
+
         return self._ask(user, prompt, params)
