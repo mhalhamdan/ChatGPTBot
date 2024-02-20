@@ -37,6 +37,11 @@ class BaseGPT:
     def _pop_attachment(self):
         return self.attachments.pop()
 
+    def _pop_all_attachments(self):
+        copy = self.attachments.copy()
+        self.attachments.clear()
+        return copy
+
     def _count_tokens(self, text: str):
         tokens = self.encoding.encode(text)
         return len(tokens)
