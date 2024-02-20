@@ -118,7 +118,6 @@ class BaseGPT:
 
     def _handle_response(self, choice: Choice) -> str:
         if choice.message.tool_calls:
-            # self.message_history.append(choice.message)
             self._add_to_history(choice.message)
             return self._handle_tool_calls(choice.message.tool_calls)
         

@@ -13,9 +13,10 @@ def download_image(image_url: str) -> BytesIO:
     else:
         raise Exception("Error in downloading image from URL")
 
-def generate_image(prompt: str, quality="standard"):
+def generate_image(prompt: str, quality="hd"):
     response = openai.images.generate(
         prompt=prompt,
+        model="dall-e-3",
         n=1,
         size="1024x1024",
         quality=quality,
@@ -40,7 +41,7 @@ generate_image_tool = {
                 },
                 "quality": {
                     "type": "string",
-                    "description": "Optional field, specify quality of the image, defaults to 'standard'",
+                    "description": "Optional field, specify quality of the image, defaults to 'hd'",
                     "enum": ["hd", "standard"]
                 }
             }
@@ -48,8 +49,7 @@ generate_image_tool = {
     }
 }
 
-def generate_speech(input: str, voice: str = "echo", speed: float = 1.0):
-    print(f"Called with {input} and {voice}")
+def generate_speech(input: str, voice: str = "nova", speed: float = 1.0):
     response = openai.audio.speech.create(
         model="tts-1-hd",
         voice=voice,
@@ -79,7 +79,7 @@ text_to_speech_tool = {
                 },
                 "voice": {
                     "type": "string",
-                    "description": "Optional field, type of voice to use, defaults to 'echo'",
+                    "description": "Optional field, type of voice to use, defaults to 'nova'",
                     "enum": ["alloy", "echo", "fable", "onyx", "nova", "shimmer"]
                 },
                 "speed": {
