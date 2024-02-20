@@ -39,8 +39,8 @@ async def send_response(message: discord.Message, response: str) -> None:
         to_send = response[:index]
         response = response[index:]
         
-        file = chatgpt._pop_attachment() if chatgpt.attachments else None
-        await message.reply(to_send, file=file)
+        files = chatgpt._pop_all_attachments() if chatgpt.attachments else None
+        await message.reply(to_send, files=files)
         
 
 @client.event
