@@ -7,6 +7,8 @@ from tools import generate_speech, text_to_speech_tool, generate_image, generate
 from openai.types.chat import ChatCompletion
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat import ChatCompletionMessageToolCall
+from discord import Message
+from message_history import MessageHistory
 
 MAX_TOKENS = 1024*12
 PLACEHOLDER_SIZE_FOR_OBJECT = 128
@@ -25,75 +27,17 @@ class BaseGPT:
     system_message = "You are a helpful assistant in a group chat. You may receive messages from more than one username, the username is a regular string, may or may not contain numbers or emojis. You may respond to a user by addressing their username in your response but it is not necessary."
     attachments = []
 
-    def __init__(self, max_return_tokens=1024*4) -> None:
-        self.message_history = []
-        self.max_return_tokens = max_return_tokens
-        self.token_count = 0        
-        self.initalize_history()
+    def __init__(self) -> None:
+        self.message_histories = []
 
-    def _add_attachment(self, attachment):
-        self.attachments.append(attachment)
 
-    def _pop_attachment(self):
-        return self.attachments.pop()
-
-    def _pop_all_attachments(self):
-        copy = self.attachments.copy()
-        self.attachments.clear()
-        return copy
-
-    def _count_tokens(self, text: str):
-        tokens = self.encoding.encode(text)
-        return len(tokens)
+    def _handle_response(self, choice: Choice, message_history: MessageHistory) -> str:
+        if not choice.message.tool_calls:
+            return choice.message.content
     
-    def _count_tokens_dict(self, object: dict):
-        if type(object) != dict: return PLACEHOLDER_SIZE_FOR_OBJECT
-        return sum([self._count_tokens(k) + self._count_tokens(v) for k, v in object.items()])
+        message_history._add_to_history(choice.message)
 
-    def _exceeds_token_limit(self, user: str, text: str) -> bool:
-        new_token_count = self._count_tokens(text) + self._count_tokens(user)
-        if self.token_count + new_token_count >= MAX_TOKENS - self.max_return_tokens:
-            return True
-        return False
-    
-    def _exceeds_token_limit_dict(self, message: dict) -> bool:
-        new_token_count = self._count_tokens_dict(message) if type(message) == dict else PLACEHOLDER_SIZE_FOR_OBJECT
-        if self.token_count + new_token_count >= MAX_TOKENS - self.max_return_tokens:
-            return True
-        return False
-
-    def _remove_oldest_message(self):
-        message = self.message_history.pop(1)  # We don't want to delete the system message so we use index 1 (since system message is at 0)
-        for key, value in message.items():
-            self.token_count -= self._count_tokens(key)
-            self.token_count -= self._count_tokens(value)
-
-    def _add_to_history(self, object: dict):
-        while self._exceeds_token_limit_dict(object):
-            self._remove_oldest_message()
-
-        self.token_count += self._count_tokens_dict(object)
-
-        self.message_history.append(object)
-    
-    def _add_message_to_history(self, message: str, type: str):
-        self._add_to_history({
-            "role": type, 
-            "content": message
-        })
-    
-    def _add_tool_message_to_history(self, tool_call_id: str, function_name: str, result: str):
-        tool_call_message = {
-            "tool_call_id": tool_call_id,
-            "role": "tool",
-            "name": function_name,
-            "content": result
-        }
-
-        self._add_to_history(tool_call_message)
-
-    def _handle_tool_calls(self, tool_calls: List[ChatCompletionMessageToolCall]):
-        for tool_call in tool_calls:
+        for tool_call in choice.message.tool_calls:
             function_name = tool_call.function.name
             arguments = json.loads(tool_call.function.arguments)
             function_to_call = AVAILABLE_FUNCTIONS[function_name]
@@ -101,84 +45,71 @@ class BaseGPT:
 
             if type(result) == tuple:
                 result, attachment = result[0], result[1]
-                self._add_attachment(attachment)
+                message_history._add_attachment(attachment)
 
-            self._add_tool_message_to_history(
+            message_history._add_tool_message_to_history(
                 tool_call_id=tool_call.id,
                 function_name=function_name,
                 result=str(result)
-            )
+            ) 
 
         second_response = openai.chat.completions.create(
             model=self.model,
-            messages=self.message_history,
-            max_tokens=self.max_return_tokens)
+            messages=message_history.messages,
+            max_tokens=message_history.max_return_tokens)
                 
         return second_response.choices[0].message.content
 
-    def _handle_response(self, choice: Choice) -> str:
-        if choice.message.tool_calls:
-            self._add_to_history(choice.message)
-            return self._handle_tool_calls(choice.message.tool_calls)
-        
-        return choice.message.content
 
+    def _ask(self, message: Message, prompt: str, create_params: dict) -> str:
 
-    def _ask(self, user: str, prompt: str, create_params: dict) -> str:
+        message_history = self.get_message_history(message)
 
-        self._add_message_to_history(user + ": " + prompt, "user")
+        message_history._add_message_to_history(message.author.display_name + ": " + prompt, "user")
+
+        create_params.update(
+            messages=message_history.messages, 
+            max_tokens=message_history.max_return_tokens)
 
         response = openai.chat.completions.create(**create_params)
 
-        message = self._handle_response(response.choices[0])
+        message = self._handle_response(response.choices[0], message_history)
 
-        self._add_message_to_history(message, "assistant")
+        message_history._add_message_to_history(message, "assistant")
 
-        return message
+        files = message_history._pop_all_attachments() if message_history.attachments else None
+
+        return message, files
+
 
     def ask(self, user: str, prompt: str) -> str:
        pass
 
-    def initalize_history(self) -> None:
-        self.message_history = [{"role": "system", "content": self.system_message}]
-        self.token_count = self._count_tokens("system") + self._count_tokens(self.system_message)
+
+    def get_message_history(self, message: Message) -> MessageHistory:
+
+        id = message.author.id if not message.guild else message.guild.id
+
+        message_history = next((x for x in self.message_histories if x.id == id), None)
+        if not message_history:
+            name = message.author.display_name if not message.guild else message.guild.name
+            message_history = MessageHistory(id, name, self.encoding)
+            message_history._initialize_history()
+            self.message_histories.append(message_history)
+
+        return message_history
 
 
-    def switch_model(self, model: str) -> None:
-        if model == "chatgpt":
-            self.model = "gpt-3.5-turbo"
-        elif model == "gpt3":
-            self.model = "text-davinci-003"
-        else:
-            raise ValueError(f"Unknown model name: {model}. Available models are: chatgpt and gpt3")
-        
-        self.encoding = tiktoken.get_encoding(self.model)
-
-        self.initalize_history()
-
-    
-    def change_system_message(self, new_message: str) -> None:
-        self.system_message = new_message
-
-        self.initalize_history()
+    def clear_history(self, message: Message) -> None:
+        message_history = self.get_message_history(message)
+        message_history._initialize_history()
 
 
-    @staticmethod
-    def get_formatted_history(history: list) -> str:
+    def change_system_message(self, message: Message, new_message: str) -> None:
+        message_history = self.get_message_history(message)
+        message_history.system_message = new_message
+        message_history._initialize_history()
 
-        result = ""
-
-        for line in history:
-            try:
-                role, content = line["role"], line["content"]
-                if role == "user":
-                    role = content[:21]
-                    content = content[22:]
-                result += f"{role}: {content}\n\n"
-            except:
-                result += str(line) + "\n\n"
-
-        return result
 
 class ChatGPT(BaseGPT):
 
@@ -189,14 +120,12 @@ class ChatGPT(BaseGPT):
         generate_image_tool, text_to_speech_tool
     ]
 
-    def ask(self, user: str, prompt: str) -> str:
+    def ask(self, message: Message, prompt: str) -> str:
 
         params = dict(
             model=self.model,
-            messages=self.message_history,
-            max_tokens=self.max_return_tokens,
             tools=self.tools,
             tool_choice="auto"
         )
 
-        return self._ask(user, prompt, params)
+        return self._ask(message, prompt, params)
