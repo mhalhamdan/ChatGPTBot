@@ -90,3 +90,52 @@ text_to_speech_tool = {
         }
     }
 }
+
+def image_to_text(image_url: str, prompt: str = None) -> str:
+    if not image_url:
+        return "No image found in the message."
+    
+    if not prompt:
+        prompt = "What is in this image?"
+
+    response = openai.chat.completions.create(
+    model="gpt-4-vision-preview",
+    messages=[
+        {
+        "role": "user",
+        "content": [
+            {"type": "text", "text": prompt},
+            {
+            "type": "image_url",
+            "image_url": {
+                "url": image_url,
+                "detail": "high"
+            },
+            },
+        ],
+        }
+    ],
+    max_tokens=1024,
+    )
+    return response.choices[0].message.content
+
+image_to_text_tool = {
+    "type": "function",
+    "function": {
+        "description": "Function that takes an image and turns it into text.",
+        "name": "image_to_text",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "prompt": {
+                    "type": "string",
+                    "description": "IMPORTANT THIS IS REQUIRED. The text used to prompt the AI to generate text from the image. Example 'What is in this image?'"
+                },
+                "image_url": {
+                    "type": "string",
+                    "description": "The URL of the image to convert to text."
+                }
+            }
+        }
+    }
+}

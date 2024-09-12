@@ -3,7 +3,7 @@ import openai
 import tiktoken
 from typing import List
 from credentials import OPENAI_API_TOKEN
-from tools import generate_speech, text_to_speech_tool, generate_image, generate_image_tool
+from tools import *
 from openai.types.chat import ChatCompletion
 from openai.types.chat.chat_completion import Choice
 from openai.types.chat import ChatCompletionMessageToolCall
@@ -17,7 +17,8 @@ openai.api_key = OPENAI_API_TOKEN
 
 AVAILABLE_FUNCTIONS = {
     "tts": generate_speech,
-    "generate_image": generate_image
+    "generate_image": generate_image,
+    "image_to_text": image_to_text
 }
 
 class BaseGPT:
@@ -31,16 +32,19 @@ class BaseGPT:
         self.message_histories = []
 
 
-    def _handle_response(self, choice: Choice, message_history: MessageHistory) -> str:
+    def _handle_response(self, choice: Choice, message_history: MessageHistory, attachments: list = None) -> str:
         if not choice.message.tool_calls:
             return choice.message.content
     
         message_history._add_to_history(choice.message)
 
         for tool_call in choice.message.tool_calls:
+
             function_name = tool_call.function.name
             arguments = json.loads(tool_call.function.arguments)
+
             function_to_call = AVAILABLE_FUNCTIONS[function_name]
+
             result = function_to_call(**arguments)
 
             if type(result) == tuple:
@@ -62,6 +66,10 @@ class BaseGPT:
 
 
     def _ask(self, message: Message, prompt: str, create_params: dict) -> str:
+
+        if message.attachments:
+            image_urls = " ".join([attachment.url for attachment in message.attachments])
+            prompt += f" [image attachment urls] {image_urls}"
 
         message_history = self.get_message_history(message)
 
@@ -105,19 +113,20 @@ class BaseGPT:
         message_history._initialize_history()
 
 
-    def change_system_message(self, message: Message, new_message: str) -> None:
+    def change_system_message(self, message: Message, new_message: str) -> str:
         message_history = self.get_message_history(message)
         message_history.system_message = new_message
         message_history._initialize_history()
+        return message_history.system_message
 
 
 class ChatGPT(BaseGPT):
 
-    model = "gpt-4-turbo-preview"
+    model = "gpt-4o"
     encoding = tiktoken.encoding_for_model(model)
 
     tools = [
-        generate_image_tool, text_to_speech_tool
+        generate_image_tool, text_to_speech_tool, image_to_text_tool
     ]
 
     def ask(self, message: Message, prompt: str) -> str:

@@ -82,10 +82,13 @@ async def on_message(message: discord.Message):
         if not prefix == "-system" and not prefix == "-s":
             return
         new_message = message.content.split(prefix)[1]
+        if new_message.strip() == "":
+            await message.reply(f"Current system message: ```{chatgpt.get_message_history(message).system_message}```")
+            return
         if new_message.strip() == "default":
             new_message = ChatGPT.system_message
-        chatgpt.change_system_message(message, new_message)
-        await message.reply(f"Successfully set the new system message to: ```{chatgpt.system_message}```")
+        updated_system_message = chatgpt.change_system_message(message, new_message)
+        await message.reply(f"Successfully set the new system message to: ```{updated_system_message}```")
 
 
     if message.content.startswith("-clear"):

@@ -9,7 +9,7 @@ class MessageHistory:
         self.PLACEHOLDER_SIZE_FOR_OBJECT = 128
         self.max_return_tokens = 1024*4
         self.MAX_TOKENS = 1024*12
-        self.system_message = "You are a helpful assistant in a group chat. You may receive messages from more than one username, the username is a regular string, may or may not contain numbers or emojis. You may respond to a user by addressing their username in your response but it is not necessary. Your are also able to generate images and generate text-to-speech audio files upon request."
+        self.system_message = "You are a helpful assistant in a group chat. You may receive messages from more than one username, the username is a regular string, may or may not contain numbers or emojis. You may respond to a user by addressing their username in your response but it is not necessary. Your are also able to generate images and generate text-to-speech audio files upon request. You are also able to convert images to text."
 
     def _count_tokens(self, text: str):
         tokens = self.encoding.encode(text)
